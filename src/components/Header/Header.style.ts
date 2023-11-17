@@ -99,3 +99,17 @@ export const RightSideIcon = styled.button`
     height: 100%;
   }
 `;
+
+export const BellIcon = styled(RightSideIcon)`
+  position: relative;
+`;
+
+export const Badge = styled.div`
+  background-color: ${({ theme }) => theme.PALETTE.RED_600};
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+`;
