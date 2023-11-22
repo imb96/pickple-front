@@ -1,18 +1,15 @@
 name: Sync and merge upstream repository
 on:
-  schedule:
-    - cron: '*/1 * * * *' # every 30 minutes
-
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule: 
+  - cron: "*/1 * * * *"
 jobs:
   merge:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: tgymnich/fork-sync@v1.8
-        with:
-          owner: imb96
-          base: dev
-          head: dev
       - uses: actions/checkout@v2
       - name: Merge upstream
         run: |
@@ -28,4 +25,3 @@ jobs:
           git checkout dev
           git merge -Xtheirs upstream/dev
           git push origin dev
-          # etc
