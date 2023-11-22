@@ -1,26 +1,20 @@
-name: Sync and merge upstream repository
+name: Sync with Upstream
 on:
-  schedule:
-    - cron: '*/1 * * * *' # every minutes
-  workflow_dispatch: # on button click
+  push:
+    branches:
+      - dev
 
 jobs:
-  merge:
+  sync:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v2
-      - name: Merge upstream
-        run: |
-          git config --global user.name 'imb96'
-          git config --global user.email 'kimminje7267@naver.com'
-          # "git checkout master" is unnecessary, already here by default
-          git pull --unshallow  # this option is very important, you would get
-                                # complains about unrelated histories without it.
-                                # (but actions/checkout@v2 can also be instructed
-                                # to fetch all git depth right from the start)
-          git remote add upstream https://github.com/Java-and-Script/pickple-front
-          git fetch upstream
-          git checkout dev
-          git merge -Xtheirs upstream/dev
-          git push origin dev
-          # etc
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      
+    - name: Sync with Upstream
+      run: |
+        git remote add upstream https://github.com/Java-and-Script/pickple-front
+        git fetch upstream
+        git merge upstream/dev  # 동기화할 원본 저장소의 브랜치 이름
+        git push origin dev  # 동기화할 브랜치 이름
