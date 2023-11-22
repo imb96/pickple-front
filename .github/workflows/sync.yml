@@ -1,5 +1,8 @@
 name: Sync and merge upstream repository
 on:
+  push:
+    branches:
+      - dev
   workflow_dispatch:
   schedule: 
   - cron: "*/1 * * * *"
