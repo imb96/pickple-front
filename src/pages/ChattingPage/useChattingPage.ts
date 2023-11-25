@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import SockJS from 'sockjs-client';
@@ -10,10 +11,14 @@ import { useChatRoomDetails } from '@hooks/queries/useChatRoomDetails';
 import { useLoginInfoStore } from '@stores/loginInfo.store';
 
 import { SendMessageRequest } from '@type/api/chat';
+import { ChatMember } from '@type/models/ChatMember';
 import { ChatMessage } from '@type/models/ChatMessage';
 
 import { PATH_NAME } from '@consts/pathName';
 
+import { convertUTCToKoreanTime } from '@utils/convertUTCToKoreanTime';
+
+import { useQuitCondition } from './quitChatCondition';
 import { connect, leave, send, stompConfig, subscribe } from './stompApi';
 
 export const useChattingPage = () => {
@@ -30,11 +35,16 @@ export const useChattingPage = () => {
   const { data: prevChatMessages } = useAllChatMessagesQuery({
     roomId: Number(roomId),
   });
-
   const myId = useLoginInfoStore((state) => state.loginInfo?.id);
   if (!myId || !roomDetails.members.find(({ id }) => id === myId)) {
     throw new Error('채팅방의 멤버가 아닙니다.');
   }
+
+  const { isChatroomExitAllowed } = useQuitCondition({
+    myId,
+    type: roomDetails.type,
+    domainId: roomDetails.domainId,
+  });
 
   const [sock, setSock] = useState<WebSocket | null>(null);
   const [stompClient, setStompClient] = useState<Stomp.Client | null>(null);
@@ -51,7 +61,27 @@ export const useChattingPage = () => {
   }, [chatMessages]);
 
   useEffect(() => {
-    setChatMessages(prevChatMessages);
+    const allChatMessagesWithDates = prevChatMessages.reduce(
+      (prevChats: ChatMessage[], chat: ChatMessage, idx) => {
+        if (idx === 0) {
+          const dateSystemMessage = createDateSystemMessage(chat);
+          return [...prevChats, dateSystemMessage, chat];
+        }
+
+        const prevCreatedAt = getKoreanDay(prevChatMessages[idx - 1].createdAt);
+        const curCreatedAt = getKoreanDay(chat.createdAt);
+
+        if (prevCreatedAt !== curCreatedAt) {
+          const dateSystemMessage = createDateSystemMessage(chat);
+          return [...prevChats, dateSystemMessage, chat];
+        }
+
+        return [...prevChats, chat];
+      },
+      []
+    );
+
+    setChatMessages(allChatMessagesWithDates);
   }, [prevChatMessages]);
 
   useEffect(() => {
@@ -75,7 +105,20 @@ export const useChattingPage = () => {
           stompClient,
           roomId,
           subscribeEvent: (received: ChatMessage) =>
-            setChatMessages((prev: ChatMessage[]) => [...prev, received]),
+            setChatMessages((prev: ChatMessage[]) => {
+              const prevCreatedAt = getKoreanDay(
+                prev[prev.length - 1].createdAt
+              );
+
+              const curCreatedAt = getKoreanDay(received.createdAt);
+
+              if (prevCreatedAt !== curCreatedAt) {
+                const dateSystemMessage = createDateSystemMessage(received);
+                return [...prev, dateSystemMessage, received];
+              }
+
+              return [...prev, received];
+            }),
         });
       },
     });
@@ -103,7 +146,7 @@ export const useChattingPage = () => {
     inputRef.current.value = '';
   };
 
-  const quitChatting = () => {
+  const quitChatting = async () => {
     if (!stompClient) {
       return;
     }
@@ -113,9 +156,13 @@ export const useChattingPage = () => {
       content: null,
     };
 
-    leave({ stompClient, roomId, sendData });
+    const exitCondition = await isChatroomExitAllowed();
 
-    navigate(PATH_NAME.CHAT);
+    if (exitCondition) {
+      leave({ stompClient, roomId, sendData });
+      flushSync(() => setIsModalOpen(false));
+      navigate(PATH_NAME.CHAT, { replace: true });
+    }
   };
 
   const handleClickChattingMenu = () => {
@@ -140,3 +187,30 @@ export const useChattingPage = () => {
     handleClickChattingMenu,
   };
 };
+
+function formatDateString(created: Date) {
+  const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const date = new Date(created);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const daysOfWeek = DAYS[date.getDay()];
+
+  return `${year}년 ${month}월 ${day}일 ${daysOfWeek}요일`;
+}
+
+const createDateSystemMessage = (chat: ChatMessage) => ({
+  type: '날짜' as ChatMessage['type'],
+  content: formatDateString(chat.createdAt),
+  sender: {
+    id: 0,
+    nickname: 'system',
+    profileImageUrl: '',
+  } as ChatMember,
+  roomId: chat.roomId,
+  createdAt: new Date(),
+});
+
+const getKoreanDay = (date: Date) =>
+  String(convertUTCToKoreanTime(date)).slice(0, 10);

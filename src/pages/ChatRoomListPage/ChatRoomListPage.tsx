@@ -1,24 +1,22 @@
-import { Header } from '@components/Header';
-import { Flex } from '@components/shared/Flex';
+import { Suspense } from 'react';
 
-import { theme } from '@styles/theme.ts';
+import { Header } from '@components/Header';
+
+import { useChatRoomTabStore } from '@stores/chatRoomTab.store.ts';
 
 import { CHAT_ROOM_TAB_TITLE } from '@consts/chatRoomTabTitle.ts';
-import { PATH_NAME } from '@consts/pathName.ts';
 
-import { ChatRoomItem } from './ChatRoomItem.tsx';
+import { ChatRoomList } from './ChatRoomList.tsx';
 import {
-  InformText,
   Main,
   MessagePageContainer,
   TabBar,
   TabBarButton,
 } from './ChatRoomListPage.style.ts';
-import { useChatRoomListPage } from './useChatRoomListPage.ts';
+import { SkeletonChatRoomList } from './SkeletonChatRoomList.tsx';
 
 export const ChatRoomListPage = () => {
-  const { selectedData, chatRoomTab, moveToPage, handleClickTab } =
-    useChatRoomListPage();
+  const { chatRoomTab, setChatRoomTab } = useChatRoomTabStore();
 
   return (
     <MessagePageContainer>
@@ -27,7 +25,7 @@ export const ChatRoomListPage = () => {
         <TabBar>
           {Object.values(CHAT_ROOM_TAB_TITLE).map((tab) => (
             <TabBarButton
-              onClick={() => handleClickTab(tab)}
+              onClick={() => setChatRoomTab(tab)}
               isSelected={chatRoomTab === tab}
               key={tab}
             >
@@ -35,23 +33,9 @@ export const ChatRoomListPage = () => {
             </TabBarButton>
           ))}
         </TabBar>
-        {selectedData.length !== 0 ? (
-          selectedData.map((messageItem, i) => (
-            <ChatRoomItem
-              chatRoomItem={messageItem}
-              key={i}
-              onClickChatRoomItem={() =>
-                moveToPage(PATH_NAME.GET_CHAT_PATH(String(messageItem.id)))
-              }
-            />
-          ))
-        ) : (
-          <Flex justify="center" gap={16}>
-            <InformText size={theme.FONT_SIZE.XS} weight={300}>
-              채팅 내역이 없습니다.
-            </InformText>
-          </Flex>
-        )}
+        <Suspense fallback={<SkeletonChatRoomList />}>
+          <ChatRoomList />
+        </Suspense>
       </Main>
     </MessagePageContainer>
   );
